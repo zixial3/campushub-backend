@@ -1,0 +1,37 @@
+{
+  "name": "campushub-backend",
+  "version": "0.1.0",
+  "description": "CampusHub — multi-tenant campus resource management system (backend)",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "nodemon",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint src",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.2",
+    "eslint": "^10.11.0",
+    "nodemon": "^3.1.14",
+    "prettier": "^3.9.8",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.70.1"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.2",
+    "express": "^5.2.1",
+    "mongoose": "^9.10.1"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=22.0.0",
+    "npm": ">=10.0.0"
+  }
+}
