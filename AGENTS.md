@@ -6,7 +6,11 @@ below, say so and propose a compliant alternative instead of silently
 breaking the rule.
 
 CampusHub is a **multi-tenant campus resource management system**. Every
-data model and query must be scoped to a tenant (see Multi-Tenancy).
+data model and query will be scoped to a tenant once authentication exists
+(see Multi-Tenancy).
+
+**`docs/openapi.yaml` is the authoritative API contract** (see section 3,
+API Contract). Code follows the spec; the spec never follows the code.
 
 ---
 
@@ -22,6 +26,7 @@ data model and query must be scoped to a tenant (see Multi-Tenancy).
 | ODM / database | Mongoose + MongoDB |
 | Config | dotenv |
 | Tooling | `typescript` (pinned to 5.x), `ts-node`, `@types/node`, `@types/express`, `eslint`, `typescript-eslint`, `prettier`, `nodemon` |
+| API contract lint | `@redocly/cli`, run via a version-pinned `npx` in `npm run lint:api` (not installed as a dependency) |
 
 **Forbidden:**
 
@@ -48,10 +53,13 @@ data model and query must be scoped to a tenant (see Multi-Tenancy).
 
 ## 2. Architectural Boundaries
 
-Strict 3-tier separation. A request flows in exactly one direction:
+Strict 3-tier separation (routes/controllers, services, data access). A
+request flows in exactly one direction:
 
 ```
-Route  ->  Controller  ->  Service  ->  Model
+Route  ->  Controller  ->  Service  ->  Repository  ->  Model / store
+               |
+               +-> Validator   (pure input parsing, called by controllers)
 ```
 
 Never skip a layer. Never call backwards up the chain.
@@ -64,7 +72,10 @@ src/
 ├── routes/                 # route definitions + middleware mapping
 ├── controllers/            # req/res handling, status codes
 ├── services/               # pure business logic
+├── repositories/           # data access behind async interfaces
 ├── models/                 # Mongoose schemas + interfaces
+├── validators/             # parse unknown input into typed DTOs
+├── errors/                 # framework-free domain error classes
 ├── middleware/             # cross-cutting Express middleware
 └── types/                  # shared type declarations
 ```
@@ -77,22 +88,41 @@ src/
 - No business logic, no database access, no `try/catch`.
 
 ### Controllers — `src/controllers/`
-- Translate HTTP to and from the service layer: read `req`, call exactly one
-  service function, set the status code, send the response.
+- Translate HTTP to and from the service layer: read `req`, parse it with a
+  validator from `src/validators/`, call exactly one service function, set
+  the status code, send the response.
 - **No direct database queries.** A controller must never import from
   `src/models/` or call `.find()`, `.save()`, `.aggregate()`, etc.
-- No business rules, validation logic, or computation beyond shaping the
-  response payload.
+- No business rules, validation rules, or computation beyond shaping the
+  response payload. Calling a validator is fine; writing field checks inline
+  is not.
+- Use the `HttpStatus` constants from `src/types/http.ts`, not bare numbers.
 - Signature is always `(req: Request, res: Response, next: NextFunction)`.
 - Errors are forwarded with `next(err)`, never handled locally.
 
 ### Services — `src/services/`
-- Pure business logic. This is the only layer allowed to touch models.
+- Pure business logic. This is the only layer allowed to call repositories.
 - **Framework-free**: never import from `express`, and never reference `req`,
   `res`, or HTTP status codes. A service must be callable from a CLI or test
   with no HTTP involved.
 - Accept and return plain typed objects/DTOs, not Express types.
 - Throw typed domain errors; do not return `null` to signal failure.
+
+### Repositories — `src/repositories/`
+- Data access only, behind an exported interface whose methods return
+  `Promise`s, so the in-memory implementation can be swapped for Mongoose
+  without changing any service.
+- Invariants a database would enforce with a constraint or transaction (for
+  example, no two active reservations overlapping on one resource) are
+  enforced here atomically, not as a check-then-write in the service.
+- Until MongoDB is wired in, repositories are in-memory and seeded at
+  startup. State resets on every restart; that is expected.
+
+### Validators — `src/validators/`
+- Pure functions `(input: unknown) => TypedDto` that throw `ValidationError`.
+- Each one implements the matching `docs/openapi.yaml` schema: required
+  fields, types, formats, and `additionalProperties: false`.
+- No Express imports, no I/O.
 
 ### Models — `src/models/`
 - Mongoose schemas and their TypeScript interfaces **only**.
@@ -129,6 +159,21 @@ src/
 - Never swallow an error with an empty `catch {}`.
 - `process.exit()` is only allowed in `src/server.ts`.
 
+### API Contract
+- `docs/openapi.yaml` (OpenAPI 3.0.3) defines every route, parameter, request
+  body, response, and status code. **Do not add, rename, or remove an
+  endpoint, field, or status code unless the spec changes first.** If a task
+  needs a change to the HTTP surface, update the spec in the same change and
+  say so.
+- Interfaces in `src/types/reservation.ts` mirror `components/schemas` field
+  for field. Use the spec's names exactly; do not invent aliases.
+- Every error response body is `ErrorResponse` (`{ code, message }`), with
+  `code` in SCREAMING_SNAKE_CASE. Map domain errors to HTTP status codes only
+  in `errorHandler`.
+- Date-times are RFC 3339 strings with an explicit offset on input, and UTC
+  (`toISOString()`) on output.
+- Run `npm run lint:api` after any spec change and report the real result.
+
 ### General
 - Config is read from `process.env` in `src/config/` and nowhere else. No
   hardcoded ports, URIs, secrets, or magic strings in handlers.
@@ -139,10 +184,13 @@ src/
 - Comment *why*, not *what*. Do not narrate obvious code.
 - Do not add a comment banner or "Generated by AI" header to files.
 
-### Multi-Tenancy
-- Every tenant-owned schema carries a required, indexed `tenantId`.
-- Every service-layer query filters on `tenantId`. A query that reads or
-  writes tenant data without a `tenantId` filter is a bug, not a shortcut.
+### Multi-Tenancy (deferred until authentication exists)
+- Once authentication exists, every tenant-owned schema carries a required,
+  indexed `tenantId`, and every repository query filters on it. A query
+  without a `tenantId` filter is then a bug, not a shortcut.
+- `tenantId` will come from the authenticated principal, **never** from the
+  request body, query, or path. Until then, the API is single-tenant: do not
+  add a `tenantId` field to the contract or fake one with a default value.
 
 ---
 
@@ -167,7 +215,8 @@ src/
 ## 5. Working Agreement
 
 - Before writing code, state which layers you will touch and why.
-- After writing code, run `npm run typecheck` and report the real result.
+- After writing code, run `npm run typecheck` and `npm run lint` and report
+  the real results.
   Do not claim something compiles or passes without having run it.
 - If a rule here is wrong or blocking, tell me — this file is a living
   document and I will change it. Do not work around it unilaterally.
@@ -183,3 +232,12 @@ src/
   (`no-explicit-any`, `no-floating-promises`, `explicit-function-return-type`)
   rather than leaving them as prose. Pinned `typescript` to 5.x as a
   consequence.
+- **2026-09-28** — Lab 2: made `docs/openapi.yaml` the authoritative contract
+  and added the API Contract rules. Added `repositories/`, `validators/`, and
+  `errors/` to the architecture. The lab requires runnable endpoints with no
+  database, and the rule that services talk only to Mongoose models left no
+  compliant place for in-memory state. Controllers may now call validators,
+  because no validation library is authorized and controllers may not
+  contain field checks. Deferred the multi-tenancy rule: the contract has no
+  tenant, and without authentication any `tenantId` would come from
+  untrusted input.
