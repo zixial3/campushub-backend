@@ -1,10 +1,10 @@
 import type { Request, Response } from 'express';
-import type { ErrorResponseBody } from '../types/api';
+import type { ErrorResponse } from '../types/api';
+import { HttpStatus } from '../types/http';
 
-export function notFoundHandler(req: Request, res: Response): void {
-  const body: ErrorResponseBody = {
-    status: 'error',
+export function notFoundHandler(req: Request, res: Response<ErrorResponse>): void {
+  res.status(HttpStatus.NOT_FOUND).json({
+    code: 'ROUTE_NOT_FOUND',
     message: `Route ${req.method} ${req.originalUrl} not found`,
-  };
-  res.status(404).json(body);
+  });
 }

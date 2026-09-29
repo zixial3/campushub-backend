@@ -21,7 +21,9 @@ function readPort(name: string, fallback: number): number {
   }
   const parsed: number = Number.parseInt(raw, 10);
   if (!Number.isInteger(parsed) || parsed <= 0 || parsed > 65535) {
-    throw new Error(`Environment variable ${name} must be a valid port, received "${raw}"`);
+    throw new Error(
+      `Environment variable ${name} must be a valid port, received "${raw}"`,
+    );
   }
   return parsed;
 }
