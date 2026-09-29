@@ -1,0 +1,14 @@
+extends:
+  - recommended
+
+rules:
+  # Local development only; there is no deployed server URL yet.
+  no-server-example.com: off
+  # Course project, not published under a license.
+  info-license: off
+  # GET /health takes no input, so it has no client-error response to document.
+  operation-4xx-response:
+    severity: warn
+  # User is a required data-model component (Lab 2) with no endpoint yet.
+  no-unused-components:
+    severity: warn

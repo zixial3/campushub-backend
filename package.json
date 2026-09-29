@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint src",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "lint:api": "npx --yes @redocly/cli@2.55.0 lint docs/openapi.yaml"
   },
   "author": "",
   "license": "ISC",
