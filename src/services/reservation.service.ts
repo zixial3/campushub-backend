@@ -1,7 +1,6 @@
-import { randomUUID } from 'node:crypto';
 import { ConflictError, NotFoundError } from '../errors/domainErrors';
-import type { IReservation } from '../models/reservation.model';
-import type { IResource } from '../models/resource.model';
+import type { IReservation } from '../models/Reservation.model';
+import type { IResource } from '../models/Resource.model';
 import { reservationRepository } from '../repositories/reservation.repository';
 import type { InsertReservationResult } from '../repositories/reservation.repository';
 import { resourceRepository } from '../repositories/resource.repository';
@@ -9,8 +8,8 @@ import type { NewReservationInput, Reservation } from '../types/reservation';
 
 export function toReservationDto(reservation: IReservation): Reservation {
   return {
-    id: reservation._id,
-    resourceId: reservation.resourceId,
+    id: reservation._id.toHexString(),
+    resourceId: reservation.resourceId.toHexString(),
     userId: reservation.userId,
     startTime: reservation.startTime.toISOString(),
     endTime: reservation.endTime.toISOString(),
@@ -38,8 +37,7 @@ export async function createReservation(
   }
 
   const result: InsertReservationResult = await reservationRepository.insertIfSlotFree({
-    _id: randomUUID(),
-    resourceId: input.resourceId,
+    resourceId: resource._id,
     userId: input.userId,
     startTime: input.startTime,
     endTime: input.endTime,

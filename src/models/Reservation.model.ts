@@ -1,10 +1,11 @@
 import { Schema, model } from 'mongoose';
+import type { Types } from 'mongoose';
 import { RESERVATION_STATUSES } from '../types/reservation';
 import type { ReservationStatus } from '../types/reservation';
 
 export interface IReservation {
-  _id: string;
-  resourceId: string;
+  _id: Types.ObjectId;
+  resourceId: Types.ObjectId;
   userId: string;
   startTime: Date;
   endTime: Date;
@@ -13,8 +14,9 @@ export interface IReservation {
 
 const reservationSchema = new Schema<IReservation>(
   {
-    _id: { type: String, required: true },
-    resourceId: { type: String, required: true, ref: 'Resource' },
+    resourceId: { type: Schema.Types.ObjectId, required: true, ref: 'Resource' },
+    // userId stays an opaque string: no endpoint creates users, and the
+    // contract does not check userId against a user store.
     userId: { type: String, required: true, ref: 'User' },
     startTime: { type: Date, required: true },
     endTime: { type: Date, required: true },

@@ -1,10 +1,10 @@
-import type { IResource } from '../models/resource.model';
+import type { IResource } from '../models/Resource.model';
 import { resourceRepository } from '../repositories/resource.repository';
 import type { ListResourcesQuery, Resource } from '../types/reservation';
 
 export function toResourceDto(resource: IResource): Resource {
   return {
-    id: resource._id,
+    id: resource._id.toHexString(),
     name: resource.name,
     type: resource.type,
     location: resource.location,

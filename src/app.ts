@@ -1,5 +1,6 @@
 import express, { type Express } from 'express';
 import { appConfig } from './config/env';
+import { connectDatabase } from './config/database';
 import { errorHandler } from './middleware/errorHandler';
 import { notFoundHandler } from './middleware/notFoundHandler';
 import { apiRouter } from './routes';
@@ -17,4 +18,10 @@ export function createApp(): Express {
   app.use(errorHandler);
 
   return app;
+}
+
+// Connects before the app is built, so no request is served without a database.
+export async function initializeApp(): Promise<Express> {
+  await connectDatabase(appConfig.mongodbUri);
+  return createApp();
 }

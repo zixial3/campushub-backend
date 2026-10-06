@@ -7,11 +7,20 @@ export interface AppConfig {
   readonly port: number;
   readonly apiPrefix: string;
   readonly serviceName: string;
+  readonly mongodbUri: string;
 }
 
 function readString(name: string, fallback: string): string {
   const raw: string | undefined = process.env[name];
   return raw === undefined || raw.trim() === '' ? fallback : raw.trim();
+}
+
+function readRequiredString(name: string): string {
+  const raw: string | undefined = process.env[name];
+  if (raw === undefined || raw.trim() === '') {
+    throw new Error(`Environment variable ${name} is required; see .env-example.`);
+  }
+  return raw.trim();
 }
 
 function readPort(name: string, fallback: number): number {
@@ -33,4 +42,6 @@ export const appConfig: AppConfig = {
   port: readPort('PORT', 3000),
   apiPrefix: readString('API_PREFIX', '/api/v1'),
   serviceName: readString('SERVICE_NAME', 'campushub-backend'),
+  // No fallback: a default URI would silently point production at localhost.
+  mongodbUri: readRequiredString('MONGODB_URI'),
 };
