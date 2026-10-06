@@ -77,6 +77,7 @@ src/
 ├── validators/             # parse unknown input into typed DTOs
 ├── errors/                 # framework-free domain error classes
 ├── middleware/             # cross-cutting Express middleware
+├── scripts/                # CLI entry points (e.g. `npm run seed`)
 └── types/                  # shared type declarations
 ```
 
@@ -115,8 +116,16 @@ src/
 - Invariants a database would enforce with a constraint or transaction (for
   example, no two active reservations overlapping on one resource) are
   enforced here atomically, not as a check-then-write in the service.
-- Until MongoDB is wired in, repositories are in-memory and seeded at
-  startup. State resets on every restart; that is expected.
+- Repositories are backed by Mongoose models. Seed data lives in
+  `src/scripts/seed.ts`, not in a repository; `npm run seed` resets the
+  database to it with fixed ObjectIds so manual tests are reproducible.
+- MongoDB may run standalone, without multi-document transactions, so
+  invariants cannot rely on them. Double-booking is prevented by a
+  short-lived per-resource lock (`ResourceLock` model) around the
+  check-and-insert.
+- Identifiers are opaque in the contract. A string that is not a valid
+  ObjectId is "not found"; never pass it to Mongoose, where the `CastError`
+  would surface as a 500.
 
 ### Validators — `src/validators/`
 - Pure functions `(input: unknown) => TypedDto` that throw `ValidationError`.
@@ -157,7 +166,8 @@ src/
   middleware. Do not write `try/catch` in a route file.
 - One centralized error-handling middleware, registered last in `app.ts`.
 - Never swallow an error with an empty `catch {}`.
-- `process.exit()` is only allowed in `src/server.ts`.
+- `process.exit()` is only allowed in `src/server.ts`. Scripts under
+  `src/scripts/` set `process.exitCode` instead.
 
 ### API Contract
 - `docs/openapi.yaml` (OpenAPI 3.0.3) defines every route, parameter, request
@@ -241,3 +251,9 @@ src/
   contain field checks. Deferred the multi-tenancy rule: the contract has no
   tenant, and without authentication any `tenantId` would come from
   untrusted input.
+- **2026-10-05** — Lab 3: repositories now use Mongoose instead of in-memory
+  arrays. `src/app.ts` exposes `initializeApp()`, which connects to MongoDB
+  (`MONGODB_URI`, now required) before building the app. Models use ObjectId
+  `_id`s and an ObjectId `resourceId` reference. Added `src/scripts/` for the
+  seed script, and documented the per-resource lock that replaces the
+  in-memory store's synchronous check-and-insert.
