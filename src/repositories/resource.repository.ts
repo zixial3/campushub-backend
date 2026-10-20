@@ -1,11 +1,12 @@
 import { isObjectIdOrHexString } from 'mongoose';
+import type { QueryFilter } from 'mongoose';
 import { ResourceModel } from '../models/Resource.model';
 import type { IResource } from '../models/Resource.model';
 import { RESOURCE_TYPES } from '../types/reservation';
-import type { ResourceType } from '../types/reservation';
+import type { ListResourcesQuery, ResourceType } from '../types/reservation';
 
 export interface ResourceRepository {
-  findAll(filter: { readonly type?: string }): Promise<IResource[]>;
+  findAll(filter: ListResourcesQuery): Promise<IResource[]>;
   findById(id: string): Promise<IResource | undefined>;
 }
 
@@ -15,18 +16,19 @@ function isResourceType(value: string): value is ResourceType {
 
 export function createMongooseResourceRepository(): ResourceRepository {
   return {
-    async findAll(filter: { readonly type?: string }): Promise<IResource[]> {
-      if (filter.type === undefined) {
-        return ResourceModel.find().sort({ _id: 1 }).lean<IResource[]>().exec();
+    async findAll(filter: ListResourcesQuery): Promise<IResource[]> {
+      const query: QueryFilter<IResource> = {};
+      if (filter.type !== undefined) {
+        // An unknown type matches nothing, which is the contract's 200 [].
+        if (!isResourceType(filter.type)) {
+          return [];
+        }
+        query.type = filter.type;
       }
-      // An unknown type matches nothing, which is the contract's 200 [].
-      if (!isResourceType(filter.type)) {
-        return [];
+      if (filter.isAvailable !== undefined) {
+        query.isAvailable = filter.isAvailable;
       }
-      return ResourceModel.find({ type: filter.type })
-        .sort({ _id: 1 })
-        .lean<IResource[]>()
-        .exec();
+      return ResourceModel.find(query).sort({ _id: 1 }).lean<IResource[]>().exec();
     },
     async findById(id: string): Promise<IResource | undefined> {
       // Identifiers are opaque in the contract, so a malformed one is "not found"

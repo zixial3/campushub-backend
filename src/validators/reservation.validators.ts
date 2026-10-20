@@ -35,3 +35,7 @@ export function parseCreateReservationRequest(body: unknown): NewReservationInpu
 export function parseUserIdParam(userId: unknown): string {
   return parseIdentifier(userId, 'userId');
 }
+
+export function parseReservationIdParam(id: unknown): string {
+  return parseIdentifier(id, 'id');
+}

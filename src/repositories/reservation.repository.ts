@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { mongo } from 'mongoose';
+import { isObjectIdOrHexString, mongo } from 'mongoose';
 import type { Types } from 'mongoose';
 import { ReservationModel } from '../models/Reservation.model';
 import type { IReservation } from '../models/Reservation.model';
@@ -16,18 +16,36 @@ export interface NewReservationRecord {
   readonly status: ReservationStatus;
 }
 
-export type InsertReservationResult =
-  | { readonly inserted: true; readonly reservation: IReservation }
-  | { readonly inserted: false };
+/** Active reservations on one resource whose time range satisfies both bounds. */
+export interface ActiveReservationRange {
+  readonly resourceId: Types.ObjectId;
+  /** Matches reservations whose startTime is strictly before this instant. */
+  readonly startsBefore: Date;
+  /** Matches reservations whose endTime is strictly after this instant. */
+  readonly endsAfter: Date;
+}
 
 export interface ReservationRepository {
   /**
-   * Inserts the reservation unless an active reservation for the same resource
-   * overlaps its [startTime, endTime) slot. Check and insert run under a
-   * per-resource lock, so concurrent requests cannot both claim one slot.
+   * Runs `work` while holding an exclusive per-resource lock, so a
+   * check-then-insert inside it cannot interleave with another one on the
+   * same resource.
    */
-  insertIfSlotFree(record: NewReservationRecord): Promise<InsertReservationResult>;
+  runExclusive<T>(resourceId: Types.ObjectId, work: () => Promise<T>): Promise<T>;
+  existsActiveInRange(range: ActiveReservationRange): Promise<boolean>;
+  create(record: NewReservationRecord): Promise<IReservation>;
+  findById(id: string): Promise<IReservation | undefined>;
   findActiveByUser(userId: string): Promise<IReservation[]>;
+  /**
+   * Atomically sets `status` to `to` only if the current status is one of
+   * `from`. Returns the updated reservation, or undefined when the ID matches
+   * nothing or the current status is not in `from`.
+   */
+  updateStatusIf(
+    id: string,
+    from: readonly ReservationStatus[],
+    to: ReservationStatus,
+  ): Promise<IReservation | undefined>;
 }
 
 const ACTIVE_STATUSES: ReservationStatus[] = [...ACTIVE_RESERVATION_STATUSES];
@@ -66,8 +84,8 @@ async function withResourceLock<T>(
   resourceId: Types.ObjectId,
   work: () => Promise<T>,
 ): Promise<T> {
-  // A standalone mongod has no multi-document transactions, so the
-  // check-then-insert below is serialized per resource with this lock instead.
+  // A standalone mongod has no multi-document transactions, so callers
+  // serialize their check-then-insert per resource with this lock instead.
   const token: string = randomUUID();
   const deadline: number = Date.now() + LOCK_WAIT_MS;
   while (!(await tryAcquireLock(resourceId, token))) {
@@ -86,38 +104,56 @@ async function withResourceLock<T>(
   }
 }
 
-// Half-open intervals: back-to-back slots (one ends 11:00, next starts 11:00) do not overlap.
-async function hasOverlappingActive(record: NewReservationRecord): Promise<boolean> {
-  const conflict: { _id: Types.ObjectId } | null = await ReservationModel.exists({
-    resourceId: record.resourceId,
-    status: { $in: ACTIVE_STATUSES },
-    startTime: { $lt: record.endTime },
-    endTime: { $gt: record.startTime },
-  }).exec();
-  return conflict !== null;
-}
-
 export function createMongooseReservationRepository(): ReservationRepository {
   return {
-    async insertIfSlotFree(
-      record: NewReservationRecord,
-    ): Promise<InsertReservationResult> {
-      return withResourceLock(
-        record.resourceId,
-        async (): Promise<InsertReservationResult> => {
-          if (await hasOverlappingActive(record)) {
-            return { inserted: false };
-          }
-          const created = await ReservationModel.create({ ...record });
-          return { inserted: true, reservation: created.toObject<IReservation>() };
-        },
-      );
+    runExclusive: withResourceLock,
+    async existsActiveInRange(range: ActiveReservationRange): Promise<boolean> {
+      const found: { _id: Types.ObjectId } | null = await ReservationModel.exists({
+        resourceId: range.resourceId,
+        status: { $in: ACTIVE_STATUSES },
+        startTime: { $lt: range.startsBefore },
+        endTime: { $gt: range.endsAfter },
+      }).exec();
+      return found !== null;
+    },
+    async create(record: NewReservationRecord): Promise<IReservation> {
+      const created = await ReservationModel.create({ ...record });
+      return created.toObject<IReservation>();
+    },
+    async findById(id: string): Promise<IReservation | undefined> {
+      // Opaque IDs: a malformed one is "not found", never a CastError 500.
+      if (!isObjectIdOrHexString(id)) {
+        return undefined;
+      }
+      const found: IReservation | null = await ReservationModel.findById(id)
+        .lean<IReservation>()
+        .exec();
+      return found ?? undefined;
     },
     async findActiveByUser(userId: string): Promise<IReservation[]> {
       return ReservationModel.find({ userId, status: { $in: ACTIVE_STATUSES } })
         .sort({ startTime: 1 })
         .lean<IReservation[]>()
         .exec();
+    },
+    async updateStatusIf(
+      id: string,
+      from: readonly ReservationStatus[],
+      to: ReservationStatus,
+    ): Promise<IReservation | undefined> {
+      if (!isObjectIdOrHexString(id)) {
+        return undefined;
+      }
+      // One conditional write: the status check and the update cannot be
+      // separated by a concurrent request.
+      const updated: IReservation | null = await ReservationModel.findOneAndUpdate(
+        { _id: id, status: { $in: [...from] } },
+        { $set: { status: to } },
+        { new: true, runValidators: true },
+      )
+        .lean<IReservation>()
+        .exec();
+      return updated ?? undefined;
     },
   };
 }

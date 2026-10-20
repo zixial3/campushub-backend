@@ -47,7 +47,11 @@ export interface User {
 /** Query parameters of GET /resources. */
 export interface ListResourcesQuery {
   readonly type?: string;
+  readonly isAvailable?: boolean;
 }
+
+/** Status a PATCH endpoint moves a reservation into. */
+export type ReservationTransitionTarget = Exclude<ReservationStatus, 'PENDING'>;
 
 /** CreateReservationRequest after validation, with parsed instants. */
 export interface NewReservationInput {

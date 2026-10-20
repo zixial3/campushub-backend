@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import {
   getUserReservations,
+  patchCancelReservation,
+  patchConfirmReservation,
   postReservation,
 } from '../controllers/reservation.controller';
 import { asyncHandler } from '../middleware/asyncHandler';
@@ -10,3 +12,8 @@ export const reservationRouter: Router = Router();
 
 reservationRouter.post('/reservations', asyncHandler(postReservation));
 reservationRouter.get('/reservations/user/:userId', asyncHandler(getUserReservations));
+reservationRouter.patch(
+  '/reservations/:id/confirm',
+  asyncHandler(patchConfirmReservation),
+);
+reservationRouter.patch('/reservations/:id/cancel', asyncHandler(patchCancelReservation));
