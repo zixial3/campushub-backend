@@ -12,3 +12,9 @@ rules:
   # User is a required data-model component (Lab 2) with no endpoint yet.
   no-unused-components:
     severity: warn
+  # /reservations/user/{userId} and /reservations/{id}/cancel|confirm share a
+  # path shape, but the first is GET-only and the others are PATCH-only, so a
+  # request always resolves to exactly one operation. Kept as a warning so a
+  # future same-method overlap still shows up.
+  no-ambiguous-paths:
+    severity: warn
