@@ -103,6 +103,10 @@ src/
 
 ### Services — `src/services/`
 - Pure business logic. This is the only layer allowed to call repositories.
+- Business rules live here, including the double-booking rule and the
+  reservation status transitions (`ALLOWED_FROM` in
+  `reservation.service.ts`). A repository may execute a query a rule needs,
+  but it does not decide the outcome.
 - **Framework-free**: never import from `express`, and never reference `req`,
   `res`, or HTTP status codes. A service must be callable from a CLI or test
   with no HTTP involved.
@@ -113,16 +117,21 @@ src/
 - Data access only, behind an exported interface whose methods return
   `Promise`s, so the in-memory implementation can be swapped for Mongoose
   without changing any service.
-- Invariants a database would enforce with a constraint or transaction (for
-  example, no two active reservations overlapping on one resource) are
-  enforced here atomically, not as a check-then-write in the service.
+- Repositories provide the atomicity that business rules need, but do not
+  contain the rules. For double-booking, the repository exposes
+  `runExclusive(resourceId, work)` (a per-resource lock) and
+  `existsActiveInRange(...)`; the service runs its check-then-insert inside
+  `runExclusive`. A check-then-insert **outside** `runExclusive` is a race
+  and is forbidden.
+- Single-document state changes use one conditional write
+  (`updateStatusIf`: `findOneAndUpdate` filtered on the current status), never
+  a read followed by a separate save.
 - Repositories are backed by Mongoose models. Seed data lives in
   `src/scripts/seed.ts`, not in a repository; `npm run seed` resets the
   database to it with fixed ObjectIds so manual tests are reproducible.
 - MongoDB may run standalone, without multi-document transactions, so
-  invariants cannot rely on them. Double-booking is prevented by a
-  short-lived per-resource lock (`ResourceLock` model) around the
-  check-and-insert.
+  invariants cannot rely on them. The per-resource lock is a short-lived
+  `ResourceLock` document.
 - Identifiers are opaque in the contract. A string that is not a valid
   ObjectId is "not found"; never pass it to Mongoose, where the `CastError`
   would surface as a 500.
@@ -219,6 +228,8 @@ src/
 - Never run `git push`, `git commit --amend`, `git reset --hard`, or
   `git rebase` without being asked. Do not add `--no-verify`.
 - Do not stage `node_modules/`, `dist/`, or `.env`.
+- Run Prettier only on the files you changed. Running it on all of `src/`
+  rewrites line endings in untouched files and buries the real diff.
 
 ---
 
@@ -257,3 +268,11 @@ src/
   `_id`s and an ObjectId `resourceId` reference. Added `src/scripts/` for the
   seed script, and documented the per-resource lock that replaces the
   in-memory store's synchronous check-and-insert.
+- **2026-10-19** — Lab 4: moved the double-booking decision from the
+  repository into `reservation.service.ts`. The lab requires the collision
+  check in the service layer, while the previous rule kept it inside the
+  repository so the check and the insert could not be separated. Both now
+  hold: the repository supplies the lock (`runExclusive`) and the range
+  query, and the service runs the rule inside the lock. Added the
+  conditional-write rule for status changes (confirm/cancel). Added the
+  formatter-scope rule from the Lab 4 steering log.
