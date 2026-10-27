@@ -12,6 +12,10 @@ data model and query will be scoped to a tenant once authentication exists
 **`docs/openapi.yaml` is the authoritative API contract** (see section 3,
 API Contract). Code follows the spec; the spec never follows the code.
 
+Sections 1–5 govern the backend (`src/`). The React client in `client/` is
+governed by section 6, which also inherits the typing, async, and commit
+rules of sections 3 and 4.
+
 ---
 
 ## 1. Tech Stack & Libraries
@@ -244,6 +248,70 @@ src/
 
 ---
 
+## 6. Frontend (`client/`)
+
+The client is a React + TypeScript single-page app built with Vite. It is a
+consumer of `docs/openapi.yaml`, never a second source of truth.
+
+### Tech stack
+| Purpose | Allowed |
+|---|---|
+| UI | React (function components) |
+| Build / dev server | Vite, `@vitejs/plugin-react` |
+| Language | TypeScript (`.ts` / `.tsx` only) |
+| HTTP | `fetch` (no axios, same as the backend) |
+| Styling | CSS Modules (`*.module.css`), plus one global `index.css` for tokens |
+| Lint | `oxlint` (from the Vite template) |
+
+No other runtime dependency (state library, router, UI kit, Tailwind, date
+library) without approval. `client/` has its own `package.json`; never add
+frontend packages to the root one.
+
+### Component architecture
+- Function components only, each with an explicit `Props` interface
+  (`interface ResourceListProps {...}`, exported for every exported
+  component) and an explicit return type (`: JSX.Element` or
+  `: JSX.Element | null`).
+- Named exports only, as in the backend. The one exception is tool config
+  that requires a default export (`vite.config.ts`).
+- `src/components/` holds presentational and form components. A component
+  renders state and raises events; it never builds a URL or calls `fetch`.
+
+### State management
+- React hooks only (`useState`, `useEffect`, `useCallback`, `useMemo`) and
+  custom hooks in `src/hooks/`. No global store.
+- **No inline API calls inside JSX or component bodies.** Components call a
+  custom hook or a handler that calls a hook; hooks call `src/api/`.
+- Every async workflow exposes explicit `isLoading` and `error` state, and
+  every path out of it (success, API error, network error, unmount) clears
+  the loading flag. A spinner that can hang is a bug.
+- Effects that fetch abort on cleanup (`AbortController`) so a stale
+  response never overwrites newer state.
+
+### API layer — `src/api/`
+- `campushubApi.ts` is the only module that talks HTTP. Its types live in
+  `src/api/types.ts` and mirror `components/schemas` field for field,
+  with the spec's names.
+- Non-2xx responses are thrown as `ApiError` carrying the HTTP status and the
+  `ErrorResponse.code`. Components branch on `code` (`DOUBLE_BOOKING`,
+  `RESOURCE_UNAVAILABLE`, ...), never on message text.
+- The base URL comes from `import.meta.env.VITE_API_BASE_URL`, defaulting to
+  `/api/v1`, which the Vite dev server proxies to the backend. The backend
+  therefore needs no CORS change.
+- Date-times are sent with `toISOString()` (UTC, explicit `Z`), as the
+  contract requires.
+
+### Styling
+- One CSS Module per component, colocated (`BookingForm.module.css`).
+- Shared colours and spacing are CSS custom properties in `src/index.css`.
+  No inline `style={{...}}` objects except for truly dynamic values.
+
+### Verification
+- After changing client code, run `npm run build` (which type-checks) and
+  `npm run lint` inside `client/`, and report the real results.
+
+---
+
 ## Changelog
 
 - **2026-09-21** — Initial version (Lab 1).
@@ -276,3 +344,10 @@ src/
   query, and the service runs the rule inside the lock. Added the
   conditional-write rule for status changes (confirm/cancel). Added the
   formatter-scope rule from the Lab 4 steering log.
+- **2026-10-26** — Lab 5: added section 6 for the React client in
+  `client/`. Chose `fetch` over axios to stay consistent with the backend's
+  ban, and CSS Modules over Tailwind because Tailwind adds build
+  dependencies. Calls go through a Vite dev proxy so the backend's HTTP
+  surface (and the spec) did not need a CORS change. Made explicit
+  `isLoading`/`error` state mandatory, because unhandled 409s and hanging
+  spinners are the failure mode this lab audits.
