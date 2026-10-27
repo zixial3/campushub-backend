@@ -1,0 +1,153 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.heading {
+  margin: 0;
+  font-size: 1.125rem;
+}
+
+.refresh {
+  padding: 4px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.refresh:disabled {
+  color: var(--text-muted);
+  cursor: progress;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  list-style: none;
+  transition: opacity 150ms ease;
+}
+
+.list[aria-busy='true'] {
+  opacity: 0.6;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+
+.row + .row {
+  border-top: 1px solid var(--border);
+}
+
+.details {
+  flex: 1;
+  min-width: 0;
+}
+
+.name {
+  margin: 0;
+  font-weight: 600;
+}
+
+.slot {
+  margin: 2px 0 0;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.rowError {
+  margin: 6px 0 0;
+  color: var(--danger-text);
+  font-size: 0.8125rem;
+}
+
+.status {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.status[data-status='PENDING'] {
+  background: var(--warning-bg);
+  color: var(--warning-text);
+}
+
+.status[data-status='CONFIRMED'] {
+  background: var(--success-bg);
+  color: var(--success-text);
+}
+
+.cancel {
+  flex-shrink: 0;
+  padding: 5px 12px;
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--danger-text);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cancel:hover:not(:disabled) {
+  background: var(--danger-bg);
+}
+
+.cancel:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.refresh:focus-visible,
+.cancel:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.muted,
+.empty {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.empty {
+  padding: var(--space-5) var(--space-4);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  text-align: center;
+}
+
+@media (max-width: 480px) {
+  .row {
+    flex-wrap: wrap;
+  }
+
+  .details {
+    flex-basis: 100%;
+  }
+}
