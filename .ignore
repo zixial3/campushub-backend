@@ -1,0 +1,20 @@
+# Files AI agents and code search should skip. Read by ripgrep, which agent
+# search tools use; most editors honour it too. It adds to .gitignore and
+# never removes anything from version control.
+
+# Dependency lockfiles: half of the searchable bytes, and never hand-edited.
+package-lock.json
+
+# Build output and generated artifacts. Already in .gitignore; repeated here
+# for tools that read .ignore but not .gitignore.
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+*.map
+
+# Logs and history. Steering logs record past lab work, not current rules.
+*.log
+logs/
+docs/*-steering-log.md
