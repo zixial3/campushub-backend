@@ -1,8 +1,9 @@
 # CampusHub client
 
 React + TypeScript (Vite) frontend for the CampusHub reservation API. It
-consumes `../docs/openapi.yaml`; see section 6 of `../AGENTS.md` for the rules
-it follows.
+consumes `../docs/openapi.yaml` and imports the API types from
+`../shared/contract.ts`; see section 4 of `../AGENTS.md` for the rules it
+follows.
 
 ## Run
 
@@ -37,16 +38,24 @@ npm run lint   # oxlint
 src/
 ├── api/
 │   ├── campushubApi.ts   # the only module that calls fetch
-│   ├── types.ts          # mirrors components/schemas in the spec
 │   ├── guards.ts         # runtime checks that responses match the contract
 │   └── errorMessages.ts  # UI copy keyed on ErrorResponse.code
-├── hooks/                # data and mutation state (isLoading / error)
+├── hooks/
+│   ├── useApiQuery.ts      # fetch-on-mount with abort, loading, error
+│   ├── useResources.ts     # resource list
+│   ├── useReservations.ts  # a user's reservations: list, cancel, create
+│   └── useBookingForm.ts   # booking form state and submit flow
 ├── components/
 │   ├── ResourceList.tsx      # resource cards + type filter
-│   ├── BookingForm.tsx       # time-slot form with validation
+│   ├── BookingForm.tsx       # time-slot form (renders useBookingForm)
 │   └── UserReservations.tsx  # active bookings + cancel
 └── utils/                # date formatting, booking validation
 ```
+
+API data types (`Resource`, `Reservation`, `ErrorResponse`, ...) are not
+declared here: they come from `../shared/contract.ts`, the same file the
+backend imports. The Vite dev server is allowed to serve that directory
+(`server.fs.allow` in `vite.config.ts`).
 
 There is no authentication yet, so the student is selected by ID in the
 header (default `user-456`, the spec's example user).

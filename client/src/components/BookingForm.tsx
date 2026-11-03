@@ -1,12 +1,11 @@
-import { useId, useState } from 'react';
-import type { ChangeEvent, FormEvent, JSX } from 'react';
+import { useId } from 'react';
+import type { FormEvent, JSX } from 'react';
 import { describeBookingError } from '../api/errorMessages';
 import type { Reservation, Resource } from '../../../shared/contract';
-import { useCreateReservation } from '../hooks/useCreateReservation';
-import { defaultSlot, formatSlot, toLocalInputValue } from '../utils/datetime';
-import { validateBooking } from '../utils/validateBooking';
-import type { BookingFieldErrors, BookingFormValues } from '../utils/validateBooking';
+import { useBookingForm } from '../hooks/useBookingForm';
+import { formatSlot } from '../utils/datetime';
 import { ErrorBanner } from './ErrorBanner';
+import { TimeField } from './TimeField';
 import { RESOURCE_TYPE_LABELS } from './resourceLabels';
 import styles from './BookingForm.module.css';
 
@@ -17,11 +16,6 @@ export interface BookingFormProps {
   onClose: () => void;
 }
 
-function initialValues(): BookingFormValues {
-  const { start, end } = defaultSlot();
-  return { start: toLocalInputValue(start), end: toLocalInputValue(end) };
-}
-
 export function BookingForm({
   resource,
   userId,
@@ -29,52 +23,17 @@ export function BookingForm({
   onClose,
 }: BookingFormProps): JSX.Element {
   const idPrefix: string = useId();
-  const [values, setValues] = useState<BookingFormValues>(initialValues);
-  const [fieldErrors, setFieldErrors] = useState<BookingFieldErrors>({});
-  // Validate live only after the first submit, so the user isn't scolded mid-typing.
-  const [hasAttempted, setHasAttempted] = useState<boolean>(false);
-  const [booked, setBooked] = useState<Reservation | null>(null);
-  // Captured once: reading the clock during render would change `min` on every re-render.
-  const [earliestStart] = useState<string>((): string => toLocalInputValue(new Date()));
-  const { submit, isSubmitting, error, clearError } = useCreateReservation();
-
-  const handleChange = (event: ChangeEvent<HTMLInputElement>): void => {
-    const next: BookingFormValues = {
-      ...values,
-      [event.target.name]: event.target.value,
-    };
-    setValues(next);
-    setBooked(null);
-    // A conflict was about the old times; once they change it no longer applies.
-    clearError();
-    if (hasAttempted) {
-      const result = validateBooking(next);
-      setFieldErrors(result.ok ? {} : result.errors);
-    }
-  };
-
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
-    event.preventDefault();
-    setHasAttempted(true);
-    const result = validateBooking(values);
-    if (!result.ok) {
-      setFieldErrors(result.errors);
-      return;
-    }
-    setFieldErrors({});
-    // A previous success must not sit next to this attempt's error.
-    setBooked(null);
-    const reservation: Reservation | null = await submit({
-      resourceId: resource.id,
-      userId,
-      startTime: result.start.toISOString(),
-      endTime: result.end.toISOString(),
-    });
-    if (reservation !== null) {
-      setBooked(reservation);
-      onBooked(reservation);
-    }
-  };
+  const {
+    values,
+    fieldErrors,
+    booked,
+    earliestStart,
+    isSubmitting,
+    error,
+    clearError,
+    handleChange,
+    handleSubmit,
+  } = useBookingForm(resource, userId, onBooked);
 
   const startId: string = `${idPrefix}-start`;
   const endId: string = `${idPrefix}-end`;
@@ -149,51 +108,5 @@ export function BookingForm({
         </button>
       </form>
     </section>
-  );
-}
-
-interface TimeFieldProps {
-  id: string;
-  name: keyof BookingFormValues;
-  label: string;
-  value: string;
-  error: string | undefined;
-  min: string;
-  onChange: (event: ChangeEvent<HTMLInputElement>) => void;
-}
-
-function TimeField({
-  id,
-  name,
-  label,
-  value,
-  error,
-  min,
-  onChange,
-}: TimeFieldProps): JSX.Element {
-  const errorId: string = `${id}-error`;
-  return (
-    <div className={styles.field}>
-      <label htmlFor={id} className={styles.label}>
-        {label}
-      </label>
-      <input
-        id={id}
-        name={name}
-        type="datetime-local"
-        className={styles.input}
-        value={value}
-        min={min}
-        required
-        aria-invalid={error !== undefined}
-        aria-describedby={error !== undefined ? errorId : undefined}
-        onChange={onChange}
-      />
-      {error !== undefined && (
-        <p id={errorId} className={styles.fieldError}>
-          {error}
-        </p>
-      )}
-    </div>
   );
 }
