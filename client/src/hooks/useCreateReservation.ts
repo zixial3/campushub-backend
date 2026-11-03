@@ -1,11 +1,11 @@
 import { useCallback, useRef, useState } from 'react';
 import { createReservation, toApiError } from '../api/campushubApi';
 import type { ApiError } from '../api/campushubApi';
-import type { CreateReservationDTO, Reservation } from '../api/types';
+import type { CreateReservationRequest, Reservation } from '../../../shared/contract';
 
 export type CreateReservationState = {
   /** Resolves to the new reservation, or null when it failed (see `error`). */
-  submit: (payload: CreateReservationDTO) => Promise<Reservation | null>;
+  submit: (payload: CreateReservationRequest) => Promise<Reservation | null>;
   isSubmitting: boolean;
   error: ApiError | null;
   clearError: () => void;
@@ -18,7 +18,7 @@ export function useCreateReservation(): CreateReservationState {
   const inFlight = useRef<boolean>(false);
 
   const submit = useCallback(
-    async (payload: CreateReservationDTO): Promise<Reservation | null> => {
+    async (payload: CreateReservationRequest): Promise<Reservation | null> => {
       if (inFlight.current) {
         return null;
       }

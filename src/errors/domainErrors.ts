@@ -1,4 +1,4 @@
-import type { ErrorCode } from '../types/api';
+import type { ErrorCode } from '../../shared/contract';
 
 export type DomainErrorKind = 'validation' | 'not_found' | 'conflict';
 

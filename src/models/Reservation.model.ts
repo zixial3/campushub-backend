@@ -1,7 +1,7 @@
 import { Schema, model } from 'mongoose';
 import type { Types } from 'mongoose';
-import { RESERVATION_STATUSES } from '../types/reservation';
-import type { ReservationStatus } from '../types/reservation';
+import { RESERVATION_STATUSES } from '../../shared/contract';
+import type { ReservationStatus } from '../../shared/contract';
 
 export interface IReservation {
   _id: Types.ObjectId;

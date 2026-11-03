@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { FormEvent, JSX } from 'react';
-import type { Resource } from './api/types';
+import type { Resource } from '../../shared/contract';
 import { BookingForm } from './components/BookingForm';
 import { ResourceList } from './components/ResourceList';
 import { UserReservations } from './components/UserReservations';

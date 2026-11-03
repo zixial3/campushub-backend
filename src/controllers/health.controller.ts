@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import { getHealthReport } from '../services/health.service';
-import type { HealthReport } from '../types/health';
+import type { HealthReport } from '../../shared/contract';
 import { HttpStatus } from '../types/http';
 
 export function getHealth(

@@ -1,5 +1,5 @@
 import { appConfig } from '../config/env';
-import type { HealthReport } from '../types/health';
+import type { HealthReport } from '../../shared/contract';
 
 const startedAt: number = Date.now();
 

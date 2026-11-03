@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { fetchUserReservations } from '../api/campushubApi';
-import type { Reservation } from '../api/types';
+import type { Reservation } from '../../../shared/contract';
 import { useApiQuery } from './useApiQuery';
 import type { QueryState } from './useApiQuery';
 

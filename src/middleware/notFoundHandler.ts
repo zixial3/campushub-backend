@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import type { ErrorResponse } from '../types/api';
+import type { ErrorResponse } from '../../shared/contract';
 import { HttpStatus } from '../types/http';
 
 export function notFoundHandler(req: Request, res: Response<ErrorResponse>): void {

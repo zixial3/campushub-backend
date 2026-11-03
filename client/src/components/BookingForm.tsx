@@ -1,7 +1,7 @@
 import { useId, useState } from 'react';
 import type { ChangeEvent, FormEvent, JSX } from 'react';
 import { describeBookingError } from '../api/errorMessages';
-import type { Reservation, Resource } from '../api/types';
+import type { Reservation, Resource } from '../../../shared/contract';
 import { useCreateReservation } from '../hooks/useCreateReservation';
 import { defaultSlot, formatSlot, toLocalInputValue } from '../utils/datetime';
 import { validateBooking } from '../utils/validateBooking';

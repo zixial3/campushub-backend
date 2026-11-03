@@ -1,7 +1,7 @@
 import type { JSX } from 'react';
 import type { ApiError } from '../api/campushubApi';
 import { describeCancelError } from '../api/errorMessages';
-import type { Reservation } from '../api/types';
+import type { Reservation } from '../../../shared/contract';
 import { useCancelReservation } from '../hooks/useCancelReservation';
 import { useUserReservations } from '../hooks/useUserReservations';
 import { formatSlot } from '../utils/datetime';

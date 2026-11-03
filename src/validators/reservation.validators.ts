@@ -1,5 +1,6 @@
 import { ValidationError } from '../errors/domainErrors';
-import type { CreateReservationRequest, NewReservationInput } from '../types/reservation';
+import type { CreateReservationRequest } from '../../shared/contract';
+import type { NewReservationInput } from '../types/reservation';
 import {
   isPlainObject,
   parseDateTime,

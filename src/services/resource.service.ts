@@ -1,6 +1,7 @@
 import type { IResource } from '../models/Resource.model';
 import { resourceRepository } from '../repositories/resource.repository';
-import type { ListResourcesQuery, Resource } from '../types/reservation';
+import type { Resource } from '../../shared/contract';
+import type { ListResourcesQuery } from '../types/reservation';
 
 export function toResourceDto(resource: IResource): Resource {
   return {

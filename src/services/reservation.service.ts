@@ -3,10 +3,9 @@ import type { IReservation } from '../models/Reservation.model';
 import type { IResource } from '../models/Resource.model';
 import { reservationRepository } from '../repositories/reservation.repository';
 import { resourceRepository } from '../repositories/resource.repository';
+import type { Reservation, ReservationStatus } from '../../shared/contract';
 import type {
   NewReservationInput,
-  Reservation,
-  ReservationStatus,
   ReservationTransitionTarget,
 } from '../types/reservation';
 

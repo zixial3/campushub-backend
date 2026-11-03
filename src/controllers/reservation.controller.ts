@@ -6,7 +6,8 @@ import {
   listActiveReservationsByUser,
 } from '../services/reservation.service';
 import { HttpStatus } from '../types/http';
-import type { NewReservationInput, Reservation } from '../types/reservation';
+import type { Reservation } from '../../shared/contract';
+import type { NewReservationInput } from '../types/reservation';
 import {
   parseCreateReservationRequest,
   parseReservationIdParam,

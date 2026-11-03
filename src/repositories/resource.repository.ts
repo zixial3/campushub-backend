@@ -2,16 +2,12 @@ import { isObjectIdOrHexString } from 'mongoose';
 import type { QueryFilter } from 'mongoose';
 import { ResourceModel } from '../models/Resource.model';
 import type { IResource } from '../models/Resource.model';
-import { RESOURCE_TYPES } from '../types/reservation';
-import type { ListResourcesQuery, ResourceType } from '../types/reservation';
+import { isResourceType } from '../../shared/contract';
+import type { ListResourcesQuery } from '../types/reservation';
 
 export interface ResourceRepository {
   findAll(filter: ListResourcesQuery): Promise<IResource[]>;
   findById(id: string): Promise<IResource | undefined>;
-}
-
-function isResourceType(value: string): value is ResourceType {
-  return (RESOURCE_TYPES as readonly string[]).includes(value);
 }
 
 export function createMongooseResourceRepository(): ResourceRepository {

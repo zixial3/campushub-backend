@@ -1,7 +1,8 @@
 import type { NextFunction, Request, Response } from 'express';
 import { listResources } from '../services/resource.service';
 import { HttpStatus } from '../types/http';
-import type { ListResourcesQuery, Resource } from '../types/reservation';
+import type { Resource } from '../../shared/contract';
+import type { ListResourcesQuery } from '../types/reservation';
 import { parseListResourcesQuery } from '../validators/resource.validators';
 
 // GET /resources -> 200 Resource[] | 400 (errorHandler)

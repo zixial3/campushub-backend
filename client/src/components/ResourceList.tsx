@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { JSX } from 'react';
-import { RESOURCE_TYPES } from '../api/types';
-import type { Resource, ResourceType } from '../api/types';
+import { RESOURCE_TYPES } from '../../../shared/contract';
+import type { Resource, ResourceType } from '../../../shared/contract';
 import { useResources } from '../hooks/useResources';
 import { ErrorBanner } from './ErrorBanner';
 import { RESOURCE_TYPE_LABELS } from './resourceLabels';

@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { fetchResources } from '../api/campushubApi';
-import type { Resource, ResourceType } from '../api/types';
+import type { Resource, ResourceType } from '../../../shared/contract';
 import { useApiQuery } from './useApiQuery';
 import type { QueryState } from './useApiQuery';
 

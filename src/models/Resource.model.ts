@@ -1,7 +1,7 @@
 import { Schema, model } from 'mongoose';
 import type { Types } from 'mongoose';
-import { RESOURCE_TYPES } from '../types/reservation';
-import type { ResourceType } from '../types/reservation';
+import { RESOURCE_TYPES } from '../../shared/contract';
+import type { ResourceType } from '../../shared/contract';
 
 export interface IResource {
   _id: Types.ObjectId;

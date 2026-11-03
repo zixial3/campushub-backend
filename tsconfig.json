@@ -3,7 +3,7 @@
     "target": "ES2023",
     "module": "node18",
     "lib": ["ES2023"],
-    "rootDir": "./src",
+    "rootDir": ".",
     "outDir": "./dist",
 
     "strict": true,
@@ -27,6 +27,6 @@
     "sourceMap": true,
     "skipLibCheck": true
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "shared/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

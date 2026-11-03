@@ -1,5 +1,5 @@
 import react from '@vitejs/plugin-react';
-import { defineConfig, loadEnv } from 'vite';
+import { defineConfig, loadEnv, searchForWorkspaceRoot } from 'vite';
 import type { UserConfig } from 'vite';
 
 // Vite requires a default export here; application code uses named exports only.
@@ -11,6 +11,9 @@ export default defineConfig(({ mode }): UserConfig => {
   return {
     plugins: [react()],
     server: {
+      // The API types live in ../shared, outside this project root, so the dev
+      // server must be allowed to serve that one directory.
+      fs: { allow: [searchForWorkspaceRoot(process.cwd()), '../shared'] },
       proxy: {
         '/api': { target: apiOrigin, changeOrigin: true },
       },

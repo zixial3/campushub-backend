@@ -4,7 +4,7 @@ export default tseslint.config(
   { ignores: ['dist/**', 'node_modules/**', 'eslint.config.mjs'] },
   ...tseslint.configs.recommendedTypeChecked,
   {
-    files: ['src/**/*.ts'],
+    files: ['src/**/*.ts', 'shared/**/*.ts'],
     languageOptions: {
       parserOptions: {
         projectService: true,

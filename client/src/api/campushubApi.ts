@@ -1,17 +1,19 @@
 import { isErrorResponse, isReservation, isResource } from './guards';
 import type {
-  ClientErrorCode,
-  CreateReservationDTO,
-  KnownErrorCode,
+  CreateReservationRequest,
+  ErrorCode,
   Reservation,
   Resource,
   ResourceType,
-} from './types';
+} from '../../../shared/contract';
 
 const BASE_URL: string = import.meta.env.VITE_API_BASE_URL ?? '/api/v1';
 
+/** Codes the client produces itself when there is no ErrorResponse to read. */
+export type ClientErrorCode = 'NETWORK_ERROR' | 'UNEXPECTED_RESPONSE';
+
 // `string & {}` keeps autocomplete for the known codes while still accepting new ones.
-export type ApiErrorCode = KnownErrorCode | ClientErrorCode | (string & {});
+export type ApiErrorCode = ErrorCode | ClientErrorCode | (string & {});
 
 /** Every failed call rejects with this, so callers can branch on `code`. */
 export class ApiError extends Error {
@@ -133,7 +135,7 @@ export async function fetchResources(
 
 /** POST /reservations. Rejects with code DOUBLE_BOOKING when the slot overlaps (409). */
 export async function createReservation(
-  payload: CreateReservationDTO,
+  payload: CreateReservationRequest,
   options: RequestOptions = {},
 ): Promise<Reservation> {
   return request('/reservations', parseReservation, {

@@ -6,7 +6,7 @@ import { ReservationModel } from '../models/Reservation.model';
 import type { IReservation } from '../models/Reservation.model';
 import { ResourceLockModel } from '../models/ResourceLock.model';
 import { ACTIVE_RESERVATION_STATUSES } from '../types/reservation';
-import type { ReservationStatus } from '../types/reservation';
+import type { ReservationStatus } from '../../shared/contract';
 
 export interface NewReservationRecord {
   readonly resourceId: Types.ObjectId;

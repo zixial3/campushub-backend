@@ -2,7 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { appConfig } from '../config/env';
 import { DomainError } from '../errors/domainErrors';
 import type { DomainErrorKind } from '../errors/domainErrors';
-import type { ErrorResponse } from '../types/api';
+import type { ErrorResponse } from '../../shared/contract';
 import { HttpStatus } from '../types/http';
 import type { HttpStatusCode } from '../types/http';
 
