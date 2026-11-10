@@ -17,6 +17,7 @@ out of agent search.
 | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Backend         | TypeScript (`.ts` only), Node.js, Express, Mongoose + MongoDB, dotenv                                                                                |
 | Backend tooling | `typescript` 5.x, `ts-node`, `@types/*`, `eslint` + `typescript-eslint`, `prettier`, `nodemon`; `@redocly/cli` via pinned `npx` (`npm run lint:api`) |
+| Backend testing | `jest` + `ts-jest`, `supertest`, `mongodb-memory-server`                                                                                             |
 | Client          | React function components, Vite + `@vitejs/plugin-react`, CSS Modules, `oxlint`                                                                      |
 
 - **No new dependencies** without asking first and saying why the platform
@@ -116,9 +117,18 @@ Never skip a layer or call back up the chain.
 
 - Before coding, say which layers you will touch. After coding, run the
   checks and report real results:
-  - backend: `npm run typecheck`, `npm run lint`, and `npm run lint:api`
-    after a spec change
+  - backend: `npm run typecheck`, `npm run lint`, `npm test`, and
+    `npm run lint:api` after a spec change
   - client: `npm run build` (type-checks) and `npm run lint` in `client/`
+- Tests live in `src/**/__tests__/*.test.ts` and run against the in-memory
+  MongoDB from `src/test/` (one database per Jest worker, wiped after every
+  test). Exercise the real repositories and lock; mock only to inject a
+  failure. `npm run test:coverage` enforces 80% statements and branches on
+  `src/services/` and `src/controllers/`.
+- Write tests adversarially: boundaries (1 ms either side), concurrency, and
+  bad input that bypasses the HTTP validator. Assert the error `code` **and**
+  its message, so a test cannot pass because a different rule rejected the
+  request. A new test should be shown to fail against the bug it targets.
 - Conventional Commits (`type(scope): subject`, imperative, under 72
   characters). The body says what changed, why, and which rule here shaped
   it, in a few lines.
