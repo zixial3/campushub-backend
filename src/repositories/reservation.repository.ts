@@ -149,7 +149,7 @@ export function createMongooseReservationRepository(): ReservationRepository {
       const updated: IReservation | null = await ReservationModel.findOneAndUpdate(
         { _id: id, status: { $in: [...from] } },
         { $set: { status: to } },
-        { new: true, runValidators: true },
+        { returnDocument: 'after', runValidators: true },
       )
         .lean<IReservation>()
         .exec();

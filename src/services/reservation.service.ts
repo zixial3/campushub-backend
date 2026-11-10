@@ -1,4 +1,4 @@
-import { ConflictError, NotFoundError } from '../errors/domainErrors';
+import { ConflictError, NotFoundError, ValidationError } from '../errors/domainErrors';
 import type { IReservation } from '../models/Reservation.model';
 import type { IResource } from '../models/Resource.model';
 import { reservationRepository } from '../repositories/reservation.repository';
@@ -34,6 +34,18 @@ export function toReservationDto(reservation: IReservation): Reservation {
   };
 }
 
+// The HTTP validator checks this too, but the service is also called outside
+// HTTP; without its own check, Mongoose's ValidationError or CastError would
+// escape as an unmapped 500 instead of a domain error.
+function assertValidSlot(startTime: Date, endTime: Date): void {
+  if (Number.isNaN(startTime.getTime()) || Number.isNaN(endTime.getTime())) {
+    throw new ValidationError('startTime and endTime must be valid dates.');
+  }
+  if (endTime.getTime() <= startTime.getTime()) {
+    throw new ValidationError('endTime must be later than startTime.');
+  }
+}
+
 async function findBookableResource(resourceId: string): Promise<IResource> {
   const resource: IResource | undefined = await resourceRepository.findById(resourceId);
   if (resource === undefined) {
@@ -63,6 +75,7 @@ async function findBookableResource(resourceId: string): Promise<IResource> {
 export async function createReservation(
   input: NewReservationInput,
 ): Promise<Reservation> {
+  assertValidSlot(input.startTime, input.endTime);
   const resource: IResource = await findBookableResource(input.resourceId);
 
   const created: IReservation = await reservationRepository.runExclusive(
