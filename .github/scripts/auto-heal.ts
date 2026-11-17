@@ -28,6 +28,13 @@ const FALLBACK_STATUSES: ReadonlySet<number> = new Set([403, 404, 429]);
 /** The model service itself failed: retrying the prompt cannot help. */
 class ProviderError extends Error {}
 
+/**
+ * The model's answer was unusable (bad JSON, a `find` that does not match, a
+ * forbidden path). Only these are fed back for another attempt; any other
+ * error is a bug or misconfiguration and fails the job loudly.
+ */
+class PatchError extends Error {}
+
 let answeredBy = 'mock';
 
 interface Edit {
@@ -53,7 +60,9 @@ interface ChatMessage {
 }
 
 function env(name: string, fallback?: string): string {
-  const value: string | undefined = process.env[name] ?? fallback;
+  // Workflows pass unset `vars.*` as empty strings, so '' means "not set".
+  const raw: string | undefined = process.env[name];
+  const value: string | undefined = raw === undefined || raw === '' ? fallback : raw;
   if (value === undefined || value === '') {
     throw new Error(`Missing required environment variable ${name}.`);
   }
@@ -164,15 +173,19 @@ function extractJson(text: string): unknown {
   const start: number = text.indexOf('{');
   const end: number = text.lastIndexOf('}');
   if (start === -1 || end <= start) {
-    throw new Error('Model answer contains no JSON object.');
+    throw new PatchError('Model answer contains no JSON object.');
   }
-  return JSON.parse(text.slice(start, end + 1));
+  try {
+    return JSON.parse(text.slice(start, end + 1));
+  } catch (err: unknown) {
+    throw new PatchError(`Model answer is not valid JSON: ${String(err)}`);
+  }
 }
 
 function parseAnswer(text: string): ModelAnswer {
   const parsed: unknown = extractJson(text);
   if (typeof parsed !== 'object' || parsed === null) {
-    throw new Error('Model answer is not a JSON object.');
+    throw new PatchError('Model answer is not a JSON object.');
   }
   const { rootCause, summary, edits } = parsed as Record<string, unknown>;
   if (
@@ -180,7 +193,7 @@ function parseAnswer(text: string): ModelAnswer {
     typeof summary !== 'string' ||
     !Array.isArray(edits)
   ) {
-    throw new Error('Model answer is missing rootCause, summary or edits.');
+    throw new PatchError('Model answer is missing rootCause, summary or edits.');
   }
   const typedEdits: Edit[] = edits.map((edit: unknown): Edit => {
     const { path, find, replace } = (edit ?? {}) as Record<string, unknown>;
@@ -189,7 +202,7 @@ function parseAnswer(text: string): ModelAnswer {
       typeof find !== 'string' ||
       typeof replace !== 'string'
     ) {
-      throw new Error('Each edit needs string path, find and replace.');
+      throw new PatchError('Each edit needs string path, find and replace.');
     }
     return { path, find, replace };
   });
@@ -266,18 +279,18 @@ async function askModel(messages: readonly ChatMessage[]): Promise<string> {
 
 function applyEdits(edits: readonly Edit[], allowed: ReadonlySet<string>): void {
   if (edits.length === 0) {
-    throw new Error('Model proposed no edits.');
+    throw new PatchError('Model proposed no edits.');
   }
   for (const edit of edits) {
     if (!allowed.has(edit.path)) {
-      throw new Error(
+      throw new PatchError(
         `Refusing to edit ${edit.path}: not one of the provided source files.`,
       );
     }
     const source: string = readFileSync(edit.path, 'utf8');
     const occurrences: number = source.split(edit.find).length - 1;
     if (occurrences !== 1) {
-      throw new Error(
+      throw new PatchError(
         `"find" text occurs ${occurrences} times in ${edit.path}; expected exactly 1.`,
       );
     }
@@ -417,12 +430,11 @@ async function main(): Promise<void> {
       }
       feedback = `Your patch was applied but checks still fail:\n${compactLog(check.log)}`;
     } catch (err: unknown) {
-      if (err instanceof ProviderError) {
+      if (!(err instanceof PatchError)) {
         git(['checkout', '--', ...files]);
         throw err;
       }
-      const reason: string = err instanceof Error ? err.message : String(err);
-      feedback = `Your answer could not be applied: ${reason}`;
+      feedback = `Your answer could not be applied: ${err.message}`;
     }
     git(['checkout', '--', ...files]);
     console.log(`Attempt ${attempt} rejected: ${feedback.slice(0, 800)}`);
@@ -438,8 +450,8 @@ async function main(): Promise<void> {
   setOutput('fixed', 'false');
 }
 
-// A provider failure fails the job (exit code 1) so it shows red in CI; a run
-// that reached the model but found no verified fix still exits 0.
+// Anything but a rejected patch fails the job (exit code 1) so it shows red in
+// CI; a run that reached the model but found no verified fix still exits 0.
 main().catch((err: unknown): void => {
   console.error('Auto-heal failed:', err);
   summarise(
