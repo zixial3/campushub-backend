@@ -129,6 +129,14 @@ Never skip a layer or call back up the chain.
   bad input that bypasses the HTTP validator. Assert the error `code` **and**
   its message, so a test cannot pass because a different rule rejected the
   request. A new test should be shown to fail against the bug it targets.
+- CI (`.github/workflows/ci.yml`) runs lint, typecheck, and tests on every
+  push and pull request to `main`. When tests fail on a pull request, the
+  `auto-fix` job runs `.github/scripts/auto-heal.ts`: a model (GitHub Models,
+  `AUTO_HEAL_MODEL`) proposes find/replace edits to `src/` only, never tests,
+  and a pull request opens only if lint, typecheck, and the full suite then
+  pass. Auto-heal pull requests are proposals: a human reviews the diff,
+  confirms the bug was fixed rather than a test weakened, and records that
+  review in the pull request description before merging.
 - Conventional Commits (`type(scope): subject`, imperative, under 72
   characters). The body says what changed, why, and which rule here shaped
   it, in a few lines.
