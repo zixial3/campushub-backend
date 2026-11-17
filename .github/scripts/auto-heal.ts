@@ -209,24 +209,62 @@ function parseAnswer(text: string): ModelAnswer {
   return { rootCause, summary, edits: typedEdits };
 }
 
+const NETWORK_RETRIES = 2;
+
+function apiKey(): string {
+  const raw: string | undefined = process.env['GEMINI_API_KEY'];
+  const key: string = (raw ?? '').trim();
+  if (key === '') {
+    throw new ProviderError('GEMINI_API_KEY is not set; add it as a repository secret.');
+  }
+  // Checked here so a bad paste gets a clear message; the key is never printed.
+  if (!/^[!-~]+$/.test(key)) {
+    throw new ProviderError(
+      'GEMINI_API_KEY contains spaces or non-ASCII characters; re-set the secret.',
+    );
+  }
+  return key;
+}
+
+/** Error text with the key removed, including fetch's underlying cause. */
+function describeError(err: unknown, key: string): string {
+  const cause: unknown = err instanceof Error ? err.cause : undefined;
+  const causeText: string =
+    cause instanceof Error
+      ? `${(cause as NodeJS.ErrnoException).code ?? cause.name}: ${cause.message}`
+      : cause === undefined
+        ? ''
+        : JSON.stringify(cause);
+  const text: string = `${String(err)}${causeText === '' ? '' : ` (cause: ${causeText})`}`;
+  return text.split(key).join('***');
+}
+
 async function callModel(
   model: string,
   messages: readonly ChatMessage[],
 ): Promise<Response> {
-  const apiKey: string | undefined = process.env['GEMINI_API_KEY'];
-  if (apiKey === undefined || apiKey === '') {
-    throw new ProviderError('GEMINI_API_KEY is not set; add it as a repository secret.');
+  const key: string = apiKey();
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await fetch(CHAT_URL, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${key}`,
+          'Content-Type': 'application/json',
+        },
+        // No response_format: the compatibility layer does not document
+        // json_object, so the prompt asks for JSON and extractJson() reads it.
+        body: JSON.stringify({ model, messages, temperature: 0 }),
+      });
+    } catch (err: unknown) {
+      const reason: string = describeError(err, key);
+      if (attempt >= NETWORK_RETRIES) {
+        throw new ProviderError(`Could not reach the model service: ${reason}`);
+      }
+      console.log(`Network error calling ${model} (${reason}); retrying.`);
+      await new Promise<void>((resolve) => setTimeout(resolve, 2000 * (attempt + 1)));
+    }
   }
-  return fetch(CHAT_URL, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    // No response_format: the compatibility layer does not document
-    // json_object, so the prompt asks for JSON and extractJson() reads it.
-    body: JSON.stringify({ model, messages, temperature: 0 }),
-  });
 }
 
 async function askModel(messages: readonly ChatMessage[]): Promise<string> {
@@ -241,15 +279,7 @@ async function askModel(messages: readonly ChatMessage[]): Promise<string> {
     .filter((model: string): boolean => model !== '');
   const failures: string[] = [];
   for (const model of models) {
-    let response: Response;
-    try {
-      response = await callModel(model, messages);
-    } catch (err: unknown) {
-      if (err instanceof ProviderError) {
-        throw err;
-      }
-      throw new ProviderError(`Could not reach the model service: ${String(err)}`);
-    }
+    const response: Response = await callModel(model, messages);
     const body: string = await response.text();
     if (!response.ok) {
       failures.push(`${model}: HTTP ${response.status} ${body.slice(0, 300)}`);
