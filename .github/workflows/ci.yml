@@ -63,6 +63,7 @@ jobs:
       && github.event.pull_request.head.repo.full_name == github.repository
       && !startsWith(github.head_ref, 'fix/auto-heal-')
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: write
       pull-requests: write
