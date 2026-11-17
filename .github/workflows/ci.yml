@@ -66,7 +66,6 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-      models: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -89,8 +88,9 @@ jobs:
       - name: Ask the model for a patch and verify it
         id: heal
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          AUTO_HEAL_MODEL: ${{ vars.AUTO_HEAL_MODEL || 'openai/gpt-4.1' }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          # Optional repo variable: comma-separated model IDs, tried in order.
+          AUTO_HEAL_MODELS: ${{ vars.AUTO_HEAL_MODELS }}
           BASE_REF: origin/${{ github.base_ref }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           SOURCE_PR: ${{ github.event.pull_request.number }}

@@ -16,7 +16,19 @@ const MAX_ATTEMPTS = 2;
 const LOG_CHARS = 6000;
 const DIFF_CHARS = 4000;
 const CONTEXT_CHARS = 14000;
-const MODELS_URL = 'https://models.github.ai/inference/chat/completions';
+// Gemini's OpenAI-compatible endpoint. (GitHub Models, the original choice,
+// was retired on 2026-07-30 and now answers every request with a plain "OK".)
+const CHAT_URL =
+  'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
+// Tried in order: free-tier eligibility is not documented per model, so a
+// quota or not-found error on one moves on to the next.
+const DEFAULT_MODELS = 'gemini-3.8-flash,gemini-3.6-flash,gemini-3.5-flash-lite';
+const FALLBACK_STATUSES: ReadonlySet<number> = new Set([403, 404, 429]);
+
+/** The model service itself failed: retrying the prompt cannot help. */
+class ProviderError extends Error {}
+
+let answeredBy = 'mock';
 
 interface Edit {
   readonly path: string;
@@ -147,8 +159,18 @@ function buildPrompt(log: string, diff: string, files: readonly string[]): ChatM
   ];
 }
 
+/** Pulls the JSON object out of a reply that may wrap it in a code fence. */
+function extractJson(text: string): unknown {
+  const start: number = text.indexOf('{');
+  const end: number = text.lastIndexOf('}');
+  if (start === -1 || end <= start) {
+    throw new Error('Model answer contains no JSON object.');
+  }
+  return JSON.parse(text.slice(start, end + 1));
+}
+
 function parseAnswer(text: string): ModelAnswer {
-  const parsed: unknown = JSON.parse(text);
+  const parsed: unknown = extractJson(text);
   if (typeof parsed !== 'object' || parsed === null) {
     throw new Error('Model answer is not a JSON object.');
   }
@@ -174,38 +196,72 @@ function parseAnswer(text: string): ModelAnswer {
   return { rootCause, summary, edits: typedEdits };
 }
 
+async function callModel(
+  model: string,
+  messages: readonly ChatMessage[],
+): Promise<Response> {
+  const apiKey: string | undefined = process.env['GEMINI_API_KEY'];
+  if (apiKey === undefined || apiKey === '') {
+    throw new ProviderError('GEMINI_API_KEY is not set; add it as a repository secret.');
+  }
+  return fetch(CHAT_URL, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    // No response_format: the compatibility layer does not document
+    // json_object, so the prompt asks for JSON and extractJson() reads it.
+    body: JSON.stringify({ model, messages, temperature: 0 }),
+  });
+}
+
 async function askModel(messages: readonly ChatMessage[]): Promise<string> {
   // Local dry runs can supply a canned answer instead of calling the API.
   const mock: string | undefined = process.env['AUTO_HEAL_MOCK_RESPONSE'];
   if (mock !== undefined) {
     return readFileSync(mock, 'utf8');
   }
-  const response: Response = await fetch(MODELS_URL, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${env('GITHUB_TOKEN')}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: env('AUTO_HEAL_MODEL', 'openai/gpt-4.1'),
-      messages,
-      temperature: 0,
-      response_format: { type: 'json_object' },
-    }),
-  });
-  const body: string = await response.text();
-  if (!response.ok) {
-    throw new Error(
-      `Model request failed with HTTP ${response.status}: ${body.slice(0, 500)}`,
-    );
+  const models: string[] = env('AUTO_HEAL_MODELS', DEFAULT_MODELS)
+    .split(',')
+    .map((model: string): string => model.trim())
+    .filter((model: string): boolean => model !== '');
+  const failures: string[] = [];
+  for (const model of models) {
+    let response: Response;
+    try {
+      response = await callModel(model, messages);
+    } catch (err: unknown) {
+      if (err instanceof ProviderError) {
+        throw err;
+      }
+      throw new ProviderError(`Could not reach the model service: ${String(err)}`);
+    }
+    const body: string = await response.text();
+    if (!response.ok) {
+      failures.push(`${model}: HTTP ${response.status} ${body.slice(0, 300)}`);
+      if (FALLBACK_STATUSES.has(response.status)) {
+        continue;
+      }
+      break;
+    }
+    if (!(response.headers.get('content-type') ?? '').includes('application/json')) {
+      throw new ProviderError(
+        `${model} returned a non-JSON response: ${body.slice(0, 200)}`,
+      );
+    }
+    const content: unknown = (
+      JSON.parse(body) as { choices?: { message?: { content?: unknown } }[] }
+    ).choices?.[0]?.message?.content;
+    if (typeof content !== 'string') {
+      throw new ProviderError(
+        `${model} returned no message content: ${body.slice(0, 300)}`,
+      );
+    }
+    answeredBy = model;
+    return content;
   }
-  const content: unknown = (
-    JSON.parse(body) as { choices?: { message?: { content?: unknown } }[] }
-  ).choices?.[0]?.message?.content;
-  if (typeof content !== 'string') {
-    throw new Error(`Model response had no message content: ${body.slice(0, 500)}`);
-  }
-  return content;
+  throw new ProviderError(`No model answered:\n${failures.join('\n')}`);
 }
 
 function applyEdits(edits: readonly Edit[], allowed: ReadonlySet<string>): void {
@@ -286,7 +342,6 @@ function writePullRequest(
   attempt: number,
 ): void {
   const tmp: string = env('RUNNER_TEMP', '.');
-  const model: string = env('AUTO_HEAL_MODEL', 'openai/gpt-4.1');
   const changed: string = git(['diff', '--stat', '--', 'src']).trim();
   const sourcePr: string | undefined = process.env['SOURCE_PR'];
   const onPr: string = sourcePr === undefined ? '' : ` on #${sourcePr}`;
@@ -314,7 +369,7 @@ function writePullRequest(
       '```',
       '',
       '## Automated verification',
-      `- Model: \`${model}\`, accepted on attempt ${attempt} of ${MAX_ATTEMPTS}`,
+      `- Model: \`${answeredBy}\` (Gemini API), accepted on attempt ${attempt} of ${MAX_ATTEMPTS}`,
       '- `npm run lint`, `npm run typecheck` and the full `npm test` suite passed on the patched code',
       '- Only source files under `src/` changed; no test files were modified',
       `- Run: ${env('RUN_URL', 'local')}`,
@@ -362,6 +417,10 @@ async function main(): Promise<void> {
       }
       feedback = `Your patch was applied but checks still fail:\n${compactLog(check.log)}`;
     } catch (err: unknown) {
+      if (err instanceof ProviderError) {
+        git(['checkout', '--', ...files]);
+        throw err;
+      }
       const reason: string = err instanceof Error ? err.message : String(err);
       feedback = `Your answer could not be applied: ${reason}`;
     }
@@ -379,8 +438,13 @@ async function main(): Promise<void> {
   setOutput('fixed', 'false');
 }
 
+// A provider failure fails the job (exit code 1) so it shows red in CI; a run
+// that reached the model but found no verified fix still exits 0.
 main().catch((err: unknown): void => {
   console.error('Auto-heal failed:', err);
+  summarise(
+    `Auto-heal could not run: ${err instanceof Error ? err.message : String(err)}`,
+  );
   setOutput('fixed', 'false');
   process.exitCode = 1;
 });
