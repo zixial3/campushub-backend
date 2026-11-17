@@ -28,6 +28,6 @@
     "skipLibCheck": true,
     "isolatedModules": true
   },
-  "include": ["src/**/*.ts", "shared/**/*.ts"],
+  "include": ["src/**/*.ts", "shared/**/*.ts", ".github/scripts/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

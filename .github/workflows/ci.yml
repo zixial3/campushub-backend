@@ -1,0 +1,119 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Lint, typecheck and test
+    runs-on: ubuntu-latest
+    outputs:
+      # Only a failing test step should wake the auto-fix job, not a lint error.
+      tests_failed: ${{ steps.tests.outcome == 'failure' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Run Jest
+        id: tests
+        run: |
+          set -o pipefail
+          npm test -- --ci 2>&1 | tee test-results.log
+
+      - name: Upload the Jest log
+        if: failure() && steps.tests.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results.log
+          retention-days: 7
+
+  auto-fix:
+    name: Auto-heal failing tests
+    needs: test
+    # Pull requests from this repository only (forks get a read-only token),
+    # and never on an auto-heal branch, so a bad fix cannot trigger itself.
+    if: >-
+      failure()
+      && needs.test.outputs.tests_failed == 'true'
+      && github.event_name == 'pull_request'
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && !startsWith(github.head_ref, 'fix/auto-heal-')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      models: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download the Jest log
+        uses: actions/download-artifact@v4
+        with:
+          name: test-results
+
+      - name: Ask the model for a patch and verify it
+        id: heal
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AUTO_HEAL_MODEL: ${{ vars.AUTO_HEAL_MODEL || 'openai/gpt-4.1' }}
+          BASE_REF: origin/${{ github.base_ref }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SOURCE_PR: ${{ github.event.pull_request.number }}
+        run: npx ts-node --transpile-only .github/scripts/auto-heal.ts
+
+      # Pull requests opened with GITHUB_TOKEN do not trigger workflows, so the
+      # heal step above already ran lint, typecheck and the full suite on the
+      # patched code. This step only publishes a fix that passed all three.
+      - name: Open the fix pull request
+        if: steps.heal.outputs.fixed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          branch="fix/auto-heal-${{ github.run_id }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add -- src
+          git commit -F "$RUNNER_TEMP/auto-heal-commit.txt"
+          git push origin "$branch"
+          gh pr create \
+            --base "$HEAD_REF" \
+            --head "$branch" \
+            --title "$(head -n 1 "$RUNNER_TEMP/auto-heal-commit.txt")" \
+            --body-file "$RUNNER_TEMP/auto-heal-pr.md"
