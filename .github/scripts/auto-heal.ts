@@ -23,7 +23,13 @@ const CHAT_URL =
 // Tried in order: free-tier eligibility is not documented per model, so a
 // quota or not-found error on one moves on to the next.
 const DEFAULT_MODELS = 'gemini-3.8-flash,gemini-3.6-flash,gemini-3.5-flash-lite';
-const FALLBACK_STATUSES: ReadonlySet<number> = new Set([403, 404, 429]);
+// Quota, not-found and overload (5xx) errors move on to the next model.
+const FALLBACK_STATUSES: ReadonlySet<number> = new Set([
+  403, 404, 429, 500, 502, 503, 504,
+]);
+// Without a limit an overloaded model can hold the request for undici's
+// 5-minute default before failing (seen in CI with gemini-3.8-flash).
+const MODEL_TIMEOUT_MS = 90_000;
 
 /** The model service itself failed: retrying the prompt cannot help. */
 class ProviderError extends Error {}
@@ -209,8 +215,6 @@ function parseAnswer(text: string): ModelAnswer {
   return { rootCause, summary, edits: typedEdits };
 }
 
-const NETWORK_RETRIES = 2;
-
 function apiKey(): string {
   const raw: string | undefined = process.env['GEMINI_API_KEY'];
   const key: string = (raw ?? '').trim();
@@ -239,31 +243,26 @@ function describeError(err: unknown, key: string): string {
   return text.split(key).join('***');
 }
 
+/** The response, or a description of why the request never got one. */
 async function callModel(
   model: string,
   messages: readonly ChatMessage[],
-): Promise<Response> {
-  const key: string = apiKey();
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      return await fetch(CHAT_URL, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${key}`,
-          'Content-Type': 'application/json',
-        },
-        // No response_format: the compatibility layer does not document
-        // json_object, so the prompt asks for JSON and extractJson() reads it.
-        body: JSON.stringify({ model, messages, temperature: 0 }),
-      });
-    } catch (err: unknown) {
-      const reason: string = describeError(err, key);
-      if (attempt >= NETWORK_RETRIES) {
-        throw new ProviderError(`Could not reach the model service: ${reason}`);
-      }
-      console.log(`Network error calling ${model} (${reason}); retrying.`);
-      await new Promise<void>((resolve) => setTimeout(resolve, 2000 * (attempt + 1)));
-    }
+  key: string,
+): Promise<Response | string> {
+  try {
+    return await fetch(CHAT_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${key}`,
+        'Content-Type': 'application/json',
+      },
+      // No response_format: the compatibility layer does not document
+      // json_object, so the prompt asks for JSON and extractJson() reads it.
+      body: JSON.stringify({ model, messages, temperature: 0 }),
+      signal: AbortSignal.timeout(MODEL_TIMEOUT_MS),
+    });
+  } catch (err: unknown) {
+    return describeError(err, key);
   }
 }
 
@@ -278,8 +277,14 @@ async function askModel(messages: readonly ChatMessage[]): Promise<string> {
     .map((model: string): string => model.trim())
     .filter((model: string): boolean => model !== '');
   const failures: string[] = [];
+  const key: string = apiKey();
   for (const model of models) {
-    const response: Response = await callModel(model, messages);
+    const response: Response | string = await callModel(model, messages, key);
+    if (typeof response === 'string') {
+      failures.push(`${model}: ${response}`);
+      console.log(`No response from ${model} (${response}); trying the next model.`);
+      continue;
+    }
     const body: string = await response.text();
     if (!response.ok) {
       failures.push(`${model}: HTTP ${response.status} ${body.slice(0, 300)}`);
