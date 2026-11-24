@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import type { JSX } from 'react';
 import { RESOURCE_TYPES } from '../../../shared/contract';
 import type { Resource, ResourceType } from '../../../shared/contract';
@@ -100,15 +100,20 @@ function ResourceCard({
   isSelected,
   onSelect,
 }: ResourceCardProps): JSX.Element {
+  const nameId: string = useId();
   return (
-    <li className={styles.card} data-selected={isSelected}>
+    // Named after the resource so every card's identical "Book" button can be
+    // told apart, by screen readers and by role-based test locators alike.
+    <li className={styles.card} data-selected={isSelected} aria-labelledby={nameId}>
       <div className={styles.cardTop}>
         <span className={styles.type}>{RESOURCE_TYPE_LABELS[resource.type]}</span>
         <span className={resource.isAvailable ? styles.available : styles.unavailable}>
           {resource.isAvailable ? 'Available' : 'Out of service'}
         </span>
       </div>
-      <h3 className={styles.name}>{resource.name}</h3>
+      <h3 id={nameId} className={styles.name}>
+        {resource.name}
+      </h3>
       <p className={styles.location}>{resource.location}</p>
       <button
         type="button"
