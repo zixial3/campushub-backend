@@ -19,6 +19,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@playwright/test": "^1.65.1",
     "@types/express": "^5.0.6",
     "@types/jest": "^30.0.0",
     "@types/node": "^26.6.2",
@@ -37,7 +38,7 @@
   "dependencies": {
     "dotenv": "^18.0.2",
     "express": "^5.2.1",
-    "mongoose": "^9.10.1"
+    "mongoose": "^9.13.0"
   },
   "private": true,
   "engines": {
