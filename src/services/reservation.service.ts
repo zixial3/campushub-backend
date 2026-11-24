@@ -86,7 +86,7 @@ export async function createReservation(
         startsBefore: input.endTime,
         endsAfter: input.startTime,
       });
-      if (collides) {
+      if (!collides) {
         throw new ConflictError(
           'DOUBLE_BOOKING',
           'Resource is already reserved for this time slot.',
