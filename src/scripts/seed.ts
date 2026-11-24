@@ -7,7 +7,7 @@ import type { IResource } from '../models/Resource.model';
 import { ResourceLockModel } from '../models/ResourceLock.model';
 
 // Fixed ObjectIds keep the manual curl tests reproducible across reseeds.
-const SEED_RESOURCES: readonly IResource[] = [
+export const SEED_RESOURCES: readonly IResource[] = [
   {
     _id: new Types.ObjectId('000000000000000000000101'),
     name: 'Study Room 302',
@@ -46,20 +46,27 @@ const SEED_RESOURCES: readonly IResource[] = [
   },
 ];
 
-// Resets both collections, so every test run starts from the same state.
+/**
+ * Empties every collection and inserts the seed resources, on the current
+ * Mongoose connection. Shared by `npm run seed` and the E2E API server.
+ */
+export async function resetDatabase(): Promise<void> {
+  await ReservationModel.deleteMany({}).exec();
+  await ResourceModel.deleteMany({}).exec();
+  await ResourceLockModel.deleteMany({}).exec();
+  await ResourceModel.insertMany(SEED_RESOURCES);
+  // Builds the declared indexes now rather than on the first request.
+  await Promise.all([
+    ResourceModel.syncIndexes(),
+    ReservationModel.syncIndexes(),
+    ResourceLockModel.syncIndexes(),
+  ]);
+}
+
 async function seed(): Promise<void> {
   await connectDatabase(appConfig.mongodbUri);
   try {
-    await ReservationModel.deleteMany({}).exec();
-    await ResourceModel.deleteMany({}).exec();
-    await ResourceLockModel.deleteMany({}).exec();
-    await ResourceModel.insertMany(SEED_RESOURCES);
-    // Builds the declared indexes now rather than on the first request.
-    await Promise.all([
-      ResourceModel.syncIndexes(),
-      ReservationModel.syncIndexes(),
-      ResourceLockModel.syncIndexes(),
-    ]);
+    await resetDatabase();
     console.log(`Seeded ${SEED_RESOURCES.length} resources:`);
     for (const resource of SEED_RESOURCES) {
       console.log(
@@ -71,7 +78,10 @@ async function seed(): Promise<void> {
   }
 }
 
-seed().catch((err: unknown): void => {
-  console.error('Seeding failed:', err);
-  process.exitCode = 1;
-});
+// Run only as `npm run seed`, not when another module imports resetDatabase.
+if (require.main === module) {
+  seed().catch((err: unknown): void => {
+    console.error('Seeding failed:', err);
+    process.exitCode = 1;
+  });
+}
