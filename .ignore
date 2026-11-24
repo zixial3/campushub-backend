@@ -18,3 +18,8 @@ coverage/
 *.log
 logs/
 docs/*-steering-log.md
+
+# Playwright output
+/playwright-report/
+/test-results/
+/blob-report/

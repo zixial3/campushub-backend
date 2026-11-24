@@ -4,7 +4,7 @@ export default tseslint.config(
   { ignores: ['dist/**', 'node_modules/**', 'eslint.config.mjs'] },
   ...tseslint.configs.recommendedTypeChecked,
   {
-    files: ['src/**/*.ts', 'shared/**/*.ts', '.github/scripts/**/*.ts'],
+    files: ['src/**/*.ts', 'shared/**/*.ts', '.github/scripts/**/*.ts', 'e2e/**/*.ts', 'playwright.config.ts'],
     languageOptions: {
       parserOptions: {
         projectService: true,

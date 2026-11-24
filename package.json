@@ -9,12 +9,13 @@
     "start": "node dist/src/server.js",
     "seed": "ts-node src/scripts/seed.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "lint": "eslint src shared .github/scripts",
+    "lint": "eslint src shared .github/scripts e2e playwright.config.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint:api": "npx --yes @redocly/cli@2.55.0 lint docs/openapi.yaml",
     "test": "jest",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "test:e2e": "playwright test"
   },
   "author": "",
   "license": "ISC",

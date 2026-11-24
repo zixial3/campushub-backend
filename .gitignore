@@ -22,3 +22,8 @@ Thumbs.db
 
 # Coverage
 coverage/
+
+# Playwright output
+/playwright-report/
+/test-results/
+/blob-report/
