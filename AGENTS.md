@@ -18,6 +18,7 @@ out of agent search.
 | Backend         | TypeScript (`.ts` only), Node.js, Express, Mongoose + MongoDB, dotenv                                                                                |
 | Backend tooling | `typescript` 5.x, `ts-node`, `@types/*`, `eslint` + `typescript-eslint`, `prettier`, `nodemon`; `@redocly/cli` via pinned `npx` (`npm run lint:api`) |
 | Backend testing | `jest` + `ts-jest`, `supertest`, `mongodb-memory-server`                                                                                             |
+| E2E testing     | `@playwright/test` (Chromium, Firefox, WebKit), Gherkin scenarios in `e2e/scenarios/`                                                                |
 | Client          | React function components, Vite + `@vitejs/plugin-react`, CSS Modules, `oxlint`                                                                      |
 
 - **No new dependencies** without asking first and saying why the platform
@@ -129,6 +130,13 @@ Never skip a layer or call back up the chain.
   bad input that bypasses the HTTP validator. Assert the error `code` **and**
   its message, so a test cannot pass because a different rule rejected the
   request. A new test should be shown to fail against the bug it targets.
+- E2E (`npm run test:e2e`): `e2e/scenarios/*.feature` holds the Gherkin
+  acceptance criteria and `e2e/*.spec.ts` implements them, one test per
+  scenario named after it and one `test.step` per Given/When/Then line. A
+  sync test fails if the two drift apart. `playwright.config.ts` boots an
+  isolated stack: the API on 3100 against an in-memory MongoDB, and Vite on 5173. Locate elements by role, label, or text only; if that is not
+  possible, fix the component's semantics instead of adding CSS selectors or
+  test IDs. Set up state through the public API, never the database.
 - CI (`.github/workflows/ci.yml`) runs lint, typecheck, and tests on every
   push and pull request to `main`. When tests fail on a pull request, the
   `auto-fix` job runs `.github/scripts/auto-heal.ts`: a Gemini model
